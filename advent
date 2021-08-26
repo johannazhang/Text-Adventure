@@ -1,0 +1,198 @@
+# functions
+checkobjects() {
+if test `eval echo '$'visited$room` = false
+then
+	for i in *
+	do
+		if test `echo $i | grep obj-`
+		then
+			object=`echo $i | sed s/obj-//`
+			if test `echo $allobjects | grep $object`
+			then
+				:
+			else
+				allobjects="$allobjects $object"
+				eval originalroom$object=$room
+				eval currentroom$object=$room
+			fi
+		fi
+	done
+fi
+}
+
+
+viewobjects() {
+for object in $allobjects
+do
+	if test `eval echo '$'currentroom$object` = $room
+	then
+		ogroom=`eval echo '$'originalroom$object`
+		file=obj-$object
+		echo There is `cat ../$ogroom/$file` here.
+	fi
+done
+}
+
+
+calculatepoints() {
+if test `eval echo '$'visited$room` = false
+then	
+	if test -f points
+	then
+		points=`cat points | head -n 1`
+		score=`expr $score + $points`
+		echo `cat points | tail -n 1`
+	fi
+fi
+}
+
+
+
+look() {
+echo `cat view`
+viewobjects
+}
+
+
+inv() {
+carryingobject=false
+for object in $allobjects
+do
+	if test `eval echo '$'currentroom$object` = _me
+	then
+		if test $carryingobject = false
+		then
+			echo You are currently carrying:
+			carryingobject=true
+		fi
+		ogroom=`eval echo '$'originalroom$object`
+		file=obj-$object
+		echo `cat ../$ogroom/$file`
+	fi
+done
+if test $carryingobject = false
+then
+	echo You are not currently carrying anything.
+fi
+}
+
+
+direction() {
+direction=$1
+if test -f exit-$direction
+then
+	room=`cat exit-$direction`
+	cd ../$room
+	echo `cat view`
+	calculatepoints
+	checkobjects
+	viewobjects
+	eval visited$room=true
+else
+	echo There is no way to go that direction.
+fi
+}
+
+
+drop() {
+object=$1
+if test `eval echo '$'currentroom$object` && test `eval echo '$'currentroom$object` = _me
+then
+	eval currentroom$object=$room
+	echo Dropped.
+else
+	echo You are not carrying an object named $object.
+fi
+}
+
+
+get() {
+object=$1
+if test `eval echo '$'currentroom$object` && test `eval echo '$'currentroom$object` = $room
+then
+	eval currentroom$object=_me
+	echo Taken.
+else
+	echo There is no object named $object here.
+fi
+}
+
+
+# start adventure
+score=0
+
+
+# check arguments and set all rooms as unvisited
+if test $# -eq 0
+then
+	echo 'usage: advent directory [room]'
+	exit 1
+elif test -d "$1"
+then
+	cd "$1"
+	for room in *
+	do
+		eval visited$room=false
+	done
+else
+	echo 'usage: advent directory [room]'
+	exit 1
+fi
+
+
+# go to first room
+if test $# -eq 1 && test -d start
+then 
+	room=start
+elif test $# -eq 2
+then
+	if test -d $2
+	then
+		room=$2
+	else
+		echo There is no room named $2.
+		exit 1
+	fi
+else
+	echo 'usage: advent directory [room]'
+	exit 1
+fi
+cd $room
+echo `cat view`
+
+
+calculatepoints
+checkobjects
+viewobjects
+eval visited$room=true
+
+
+# main loop
+while read verb noun
+do
+	case $verb in
+		l*)
+			look
+			;;
+		inv)
+			inv
+			;;
+		[nwes])
+			direction $verb
+			;;
+		drop)
+			drop $noun
+			;;
+
+		get)
+			get $noun
+			;;
+		score)
+			echo You currently have $score points.
+			;;
+		*)
+			echo Commands are: look, inv, n, w, e, s, drop, get, score
+			;;
+		esac
+done
+echo Thanks for playing. Your score is $score.
